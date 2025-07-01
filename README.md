@@ -74,6 +74,7 @@ flowchart TD
         C{"🎯 CoordinatorAgent"}
         E["🔨 BuilderAgent"]
         B["🚀 FastAPI Gateway"]
+        D["🏗️ ArchitectAgent"]
   end
     A["👤 User Request"] --> B
     B --> C
