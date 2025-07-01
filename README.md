@@ -88,7 +88,7 @@ flowchart TD
     C -. 📊 Progress .-> H
     E -. 🔄 Status .-> H
     H -. 📢 Updates .-> B
-    D --> I["END"]
+    C --> I["END"]
 
      A:::userLayer
      B:::userLayer
