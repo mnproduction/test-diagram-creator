@@ -1,0 +1,67 @@
+# docker-compose.prod.yml
+# Production-ready deployment configuration
+
+services:
+  # Backend service - NOT exposed to the internet
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # No 'ports' section here. Nginx handles external traffic.
+    env_file:
+      - .env # .env file should contain PRODUCTION values (e.g., DEBUG=false)
+    volumes:
+      # The development bind mount is removed. Code is baked into the image.
+      - diagram_temp:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      # Use the service name for inter-container communication
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://backend:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    networks:
+      - diagram-network
+
+  # Frontend service - NOT exposed to the internet
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    # No 'ports' section here. Nginx serves the static files.
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - diagram-network
+
+  # Nginx reverse proxy - The ONLY service exposed to the internet
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"   # For HTTP
+      - "443:443" # For HTTPS
+    volumes:
+      # Mount your production Nginx config and SSL certificates
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - diagram-network
+
+volumes:
+  diagram_temp:
+    driver: local
+
+networks:
+  diagram-network:
+    driver: bridge

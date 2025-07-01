@@ -1,0 +1,80 @@
+# AI Diagram Creator Service - Docker Compose Configuration
+services:
+  # Main backend application service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Override with your environment values
+      - DEBUG=true
+      - ENABLE_ASSISTANT=true
+      - MOCK_LLM=true
+      - LOG_LEVEL=INFO
+      - HOST=0.0.0.0
+      - PORT=8000
+    env_file:
+      - .env
+    volumes:
+      # The following line mounts the source code for development, allowing for hot-reloading.
+      # For a production-like deployment where code is baked into the image, this should be commented out.
+      # - .:/app:ro
+      # Temporary files volume
+      - diagram_temp:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - diagram-network
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - diagram-network
+    restart: unless-stopped
+
+  # Optional: Nginx reverse proxy (uncomment for production)
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - diagram-creator
+  #   networks:
+  #     - diagram-network
+
+  # Optional: Redis for caching (if implementing caching layer)
+  # redis:
+  #   image: redis:alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - diagram-network
+
+volumes:
+  diagram_temp:
+    driver: local
+  # redis_data:
+  #   driver: local
+
+networks:
+  diagram-network:
+    driver: bridge 

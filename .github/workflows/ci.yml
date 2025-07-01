@@ -1,0 +1,68 @@
+name: Build and Validate
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  # This is a dummy key for testing, as seen in your logs.
+  # For real deployments, use GitHub Secrets.
+  GEMINI_API_KEY: "dummy_key_for_testing"
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Build Python package
+        run: uv build
+      
+      - name: Validate Python build
+        run: uv run python scripts/validate_build.py
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Load Docker image
+        id: build-and-load
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # Load the image into the local Docker daemon so the next step can use it.
+          # This is the fix for the "Unable to find image" error.
+          load: true
+          # Do not push to a registry in this validation step.
+          push: false 
+          tags: ai-diagram-creator:${{ github.sha }}
+          # Use GitHub Actions cache for faster Docker builds on subsequent runs.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Validate Docker image functionality
+        run: |
+          echo "Testing Docker image ai-diagram-creator:${{ github.sha }}"
+          docker run --rm ai-diagram-creator:${{ github.sha }} python -c "import src; print('Docker image works correctly')"
